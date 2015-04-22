@@ -1,8 +1,10 @@
 
 	var camera, controls, light, scene, renderer;
-	
-	init();
-	animate();
+
+	function icicle(path){
+		init();
+		animate();
+	}
 	
 	function init(){
 		/*CAMERA*/
