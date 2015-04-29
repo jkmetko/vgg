@@ -17,7 +17,7 @@ function parseGraphML( file ){
     })
 
     //GET EDGES
-    graph = new Node(nodes[0]);
+    graph = new Node(nodes[0], null);
     $(file).find('edge').each(function(){
         addToGraph(graph, $(this));
     })
@@ -33,11 +33,33 @@ function addToGraph(graph, node){
     target = node.attr("target");
 
     if(graph != ""){
-        graph.findChild(source).addChild( new Node(target) );
+        graph.findChild(source).addChild( new Node(target, null) );
         numberOfGraphNodes++;
     }
 
     return graph;
+}
+
+function nextLevel(nodes) {
+    level = [];
+    if(nodes instanceof Array){
+        nodes.forEach(function (node) {
+            if (node.getChildren() != "") {
+                childred = node.getChildren();
+                children.forEach(function (child) {
+                    level.push(child);
+                })
+            }
+        })
+    }else{
+        return nodes.getChildren();
+    }
+
+    if(typeof level !== 'undefined' && level.length > 0){
+        return level;
+    }else{
+        return false;
+    }
 }
 
 function checkFile( path ) {
@@ -54,10 +76,12 @@ function checkFile( path ) {
 }
 
 /*--------2.0 - CREATING GRAPH----------------------*/
-function Node( id ){
+function Node( id, text ){
     this.id = id;
     this.children = [];
     this.parent = null;
+    this.opacity = 1;
+    this.text = text;
 
     this.setParentNode = function( node ){
         this.parent = node;
@@ -92,18 +116,14 @@ function Node( id ){
         return result;
     }
 
-}
+    this.setOpacity = function( value ){
+        this.opacity = value;
+    }
 
-function findNode( nodes, node ){
-    nodes.forEach(function(rootNode){
-        if(rootNode.id == node.id){
-            return node;
-        }
-    })
 }
 
 function drawGraph( graph ){
-    console.log(graph.id);
+    /*console.log(graph.id);
     $("#UI").append(graph.id+"<br />");
     if(graph.getChildren() != ""){
         children = graph.getChildren();
@@ -113,6 +133,13 @@ function drawGraph( graph ){
             //drawGraph(node); //dorobit funkciu getRow
         })
         $("#UI").append(row+"<br />");
+    }*/
+
+    nodes = nextLevel(graph);
+    console.log(nodes);
+    while(nodes != false) {
+        nodes = nextLevel(nodes);
+        console.log(nodes);
     }
 }
 
