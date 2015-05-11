@@ -1,205 +1,392 @@
-
-var camera, controls, light, scene, renderer;
-
 function icicle( path ){
-    checkFile( path )
-    init3D();
-    animate();
-}
+    var camera, controls, lights, scene, renderer, graph;
+    var container = document.getElementById( 'icicleContainer' ),
+        containerWidth, containerHeight,
+        range = 50;
+    var cubes = new THREE.Object3D();
+    var raycaster = new THREE.Raycaster();
+    var mouse = new THREE.Vector2();
 
-/*-------1.0 - PARSING GRAPH ML---------------------*/
-
-function parseGraphML( file ){
-    //GET NODES
+    var numberOfGraphNodes = 0;
     var nodes = [];
-    $(file).find('node').each(function(){
-        nodes.push($(this).attr("id"));
-    })
+    var minWidth = 0;
+    var minHeight = 0;
+    var nodeWidth = 5;
+    var nodeHeight = 10;
+    var nodeDepth = 1;
 
-    //GET EDGES
-    graph = new Node(nodes[0], null);
-    $(file).find('edge').each(function(){
-        addToGraph(graph, $(this));
-    })
+    checkFile( path );
 
-    console.log("NUMBER OF NODES: "+nodes.length);
-    console.log("NUMBER OF GRAPH NODES: "+numberOfGraphNodes);
-    drawGraph( graph );
-}
+    /*-------1.0 - PARSING GRAPH ML---------------------*/
 
-var numberOfGraphNodes = 1;
-function addToGraph(graph, node){
-    source = node.attr("source");
-    target = node.attr("target");
+    function parseGraphML( file ){
+        //GET NODES
+        $(file).find('node').each(function(){
+            nodes.push($(this).attr("id"));
+        })
 
-    if(graph != ""){
-        graph.findChild(source).addChild( new Node(target, null) );
+        //GET EDGES
+        graph = new Node(nodes[0], null);
         numberOfGraphNodes++;
+        $(file).find('edge').each(function(){
+            addToGraph(graph, $(this));
+        })
+
+        console.log("NUMBER OF NODES IN GUML: "+nodes.length);
+        console.log("NUMBER OF NODES IN GRAPH: "+numberOfGraphNodes);
+        setMinValues( graph );
     }
 
-    return graph;
-}
+    function addToGraph(graph, node){
+        source = node.attr("source");
+        target = node.attr("target");
 
-function nextLevel(nodes) {
-    level = [];
-    if(nodes instanceof Array){
-        nodes.forEach(function (node) {
-            if (node.getChildren() != "") {
-                childred = node.getChildren();
-                children.forEach(function (child) {
-                    level.push(child);
+        if(graph != ""){
+            graph.findChild(source).addChild( new Node(target, null) );
+            numberOfGraphNodes++;
+        }
+
+        return graph;
+    }
+
+    function nextLevel(nodes) {
+        level = [];
+        if(nodes instanceof Array){
+            nodes.forEach(function (node) {
+                if (node.getChildren() != "") {
+                    children = node.getChildren();
+                    children.forEach(function (child) {
+                        level.push(child);
+                    })
+                }
+            })
+        }else{
+            level = nodes.getChildren();
+        }
+
+        if(typeof level !== 'undefined'){
+            return level;
+        }else{
+            return false;
+        }
+    }
+
+    function checkFile( path ) {
+        $.ajax({
+            type: "GET",
+            url: path,
+            dataType: "xml",
+            success:  function( output ){
+                parseGraphML( output );
+            },error: function(){
+                console.log("File '"+ path +"' does not exists")
+            }//,async: false
+        })
+    }
+
+    /*--------2.0 - CREATING GRAPH----------------------*/
+    function Node( id, text ){
+        this.id = id;
+        this.children = [];
+        this.parent = null;
+        this.opacity = 1;
+        this.text = text;
+        this.width = null;
+        this.x = null;
+        this.y = null;
+        this.z = 0;
+        this.color = null;
+
+        this.setParentNode = function( node ){
+            this.parent = node;
+        }
+
+        this.getParentNode = function(){
+            return this.parent;
+        }
+
+        this.addChild = function( node ){
+            node.setParentNode(this);
+            this.children[this.children.length] = node;
+        }
+
+        this.getChildren = function(){
+            return this.children;
+        }
+
+        this.removeChildren = function(){
+            this.children = [];
+        }
+
+        this.findChild = function( id ){
+            if(this.id == id){
+                result = this;
+            }else if(this.getChildren() != ""){
+                children = this.getChildren();
+                children.forEach(function(child){
+                    return child.findChild( id );
                 })
             }
-        })
-    }else{
-        return nodes.getChildren();
-    }
-
-    if(typeof level !== 'undefined' && level.length > 0){
-        return level;
-    }else{
-        return false;
-    }
-}
-
-function checkFile( path ) {
-    $.ajax({
-        type: "GET",
-        url: path,
-        dataType: "xml",
-        success:  function( output ){
-            parseGraphML( output )
-        },error: function(){
-            console.log("File '"+ path +"' does not exists")
+            return result;
         }
-    })
-}
 
-/*--------2.0 - CREATING GRAPH----------------------*/
-function Node( id, text ){
-    this.id = id;
-    this.children = [];
-    this.parent = null;
-    this.opacity = 1;
-    this.text = text;
+        this.setOpacity = function( value ){
+            this.opacity = value;
+        }
 
-    this.setParentNode = function( node ){
-        this.parent = node;
+        this.setWidth = function( value ){
+            this.width = value;
+        }
+
+        this.setPosition = function( valueX, valueY ){
+            this.x = valueX;
+            this.y = valueY;
+        }
+
     }
 
-    this.getParentNode = function(){
-        return this.parent;
+    function setMinValues( graph ){
+        var maxChildrenDepth = 0;
+        var maxChildrenInLevel = 0;
+
+        nodes = nextLevel(graph);
+        while(nodes != false){
+            if(nodes.length > maxChildrenInLevel){
+                maxChildrenInLevel = nodes.length; //MAX WIDTH OF LEVEL IN THREE
+            }
+            maxChildrenDepth++;
+            nodes = nextLevel(nodes);
+        }
+        minWidth = maxChildrenInLevel * nodeWidth;
+        minHeight = maxChildrenDepth * nodeHeight;
+
+
+        console.log("MAX CHILDREN IN LEVEL: "+maxChildrenInLevel);
+        console.log("GRAPH MIN WIDTH: "+minWidth);
+        console.log("GRAPH MIN HEIGHT: "+minHeight);
+
+        setGraph( graph );
     }
 
-    this.addChild = function( node ){
-        node.setParentNode(this);
-        this.children[this.children.length] = node;
+    function setGraph( graph ){
+        var levelIndex = 1;
+
+        graph.setWidth( minWidth );
+        graph.setPosition(0,0);
+        nodes = nextLevel(graph);
+        while(nodes != false){
+            numberOfNodesInLevel = nodes.length;
+
+            nodes.forEach(function( node, index ){
+                parent = node.getParentNode();
+                parentWidth = parent.width;
+                numberOfChildren = parent.getChildren().length;
+                childrenWidth = parentWidth / numberOfChildren;
+                nodeX = index * childrenWidth;
+                nodeY = levelIndex * nodeHeight;
+
+                node.setWidth( childrenWidth );
+                node.setPosition( nodeX, nodeY );
+                //console.log("WIDTH OF "+node.id+" = "+childrenWidth);
+                //console.log("X OF "+node.id+" = "+nodeX);
+            });
+
+            levelIndex++;
+            nodes = nextLevel(nodes);
+        }
+
+        init3D( graph );
     }
 
-    this.getChildren = function(){
-        return this.children;
+    /*--------3.0 - CREATING 3D ENVIRONMENT-------------*/
+
+    function init3D( graph ){
+        /*CONTAINER*/
+        containerWidth = container.clientWidth;
+        containerHeight = container.clientHeight;
+
+        /*SCENE*/
+        scene = new THREE.Scene();
+
+        /*CAMERA*/
+        camera = setCamera();
+        scene.add(camera);
+
+        /*CONTROLS*/
+        setControls();
+
+        /*GEOMETRY*/
+        cubes = addTo3DGraph( cubes );
+        //cubes.add(setGeometry(graph));
+        scene.add(cubes);
+        console.log(scene);
+
+        /*LIGHTS*/
+        setLights( scene );
+
+        /*RENDERER*/
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize( containerWidth, containerHeight );
+        container.appendChild( renderer.domElement );
+
+        /*LISTENERS*/
+        controls.addEventListener('change', render);
+        document.addEventListener( 'mousedown', onDocumentMouseDown, false );
+        window.addEventListener( 'resize', onWindowResize, false )
+
+        /*ANIMATE*/
+        animate();
     }
 
-    this.removeChildren = function(){
-        this.children = [];
+    function setCamera(){
+        camera = new THREE.PerspectiveCamera(75, containerWidth / containerHeight, 1, 1000);
+        camera.position.set( 0, 0, range * 2 );
+        camera.lookAt( new THREE.Vector3( 0, 0, 0 ) );
+
+        return camera;
     }
 
-    this.findChild = function( id ){
-        if(this.id == id){
-            result = this;
-        }else if(this.getChildren() != ""){
-            children = this.getChildren();
-            children.forEach(function(child){
-                return child.findChild( id );
+    function setControls(){
+        controls = new THREE.TrackballControls( camera );
+        controls.rotateSpeed = 10;
+        controls.zoomSpeed = 12;
+        controls.panSpeed = 1;
+        controls.noZoom = false;
+        controls.noPan = false;
+        controls.staticMoving = true;
+        controls.dynamicDampingFactor = 0.3;
+    }
+
+    function setLights( scene ){
+        var ambientLight = new THREE.AmbientLight( 0x000000 );
+        cubes.add( ambientLight );
+
+        lights = [];
+        lights.push( new THREE.PointLight( 0xffffff, 1, 0 ) );
+        lights.push( new THREE.PointLight( 0xffffff, 1, 0 ) );
+        lights.push( new THREE.PointLight( 0xffffff, 1, 0 ) );
+
+        lights[0].position.set( 0, 200, 0 );
+        lights[1].position.set( 100, 200, 100 );
+        lights[2].position.set( -100, -200, -100 );
+
+        lights.forEach(function(light){
+            cubes.add( light );
+        })
+    }
+
+    function setGeometry( node ){
+        cube = new THREE.Object3D();
+
+        geometry = new THREE.BoxGeometry( node.width, nodeHeight, nodeDepth );
+        material = new THREE.MeshLambertMaterial({ color: 0x00ff00, wireframe: true, wireframe_linewidth: 10 });
+        mesh = new THREE.Mesh( geometry, material );
+        mesh.position.set(node.x, node.y*-1, node.z);
+
+        //console.log("X OF"+node.id+" = "+node.x);
+        cube.add( mesh );
+        cube.name = node.id;
+
+        return cube;
+    }
+
+    function addTo3DGraph( DGraph ){
+        nodes = nextLevel( graph );
+        DGraph.add(setGeometry( graph ));
+        /*//TEST SETUP
+        DGraph.children[0].add(setGeometry( graph.getChildren()[0] ));
+        DGraph.children[0].add(setGeometry( graph.getChildren()[1] ));
+        DGraph.children[0].children[1].add(setGeometry( graph.getChildren()[0].getChildren()[0] ));
+        DGraph.children[0].children[1].add(setGeometry( graph.getChildren()[0].getChildren()[1] ));
+        DGraph.children[0].children[1].add(setGeometry( graph.getChildren()[0].getChildren()[2] ));
+        */
+        while(nodes != false){
+            nodes.forEach(function(node){
+                cube = setGeometry( node );
+                child = find3Dchild(DGraph, node.parent.id);
+                child.add(setGeometry( node ));
             })
+
+            nodes = nextLevel( nodes );
+        }
+
+        return DGraph;
+    }
+
+    function find3Dchild( DGraph, id ){
+        if(DGraph instanceof THREE.Object3D){
+            if(DGraph.name == id){
+                result = DGraph;
+            }else if(DGraph.children.length > 0){
+                children = DGraph.children;
+                children.forEach(function(child){
+                    return find3Dchild( child, id );
+                })
+            }
         }
         return result;
     }
 
-    this.setOpacity = function( value ){
-        this.opacity = value;
+    function onDocumentMouseDown( event ){
+        mouse.x = ( event.clientX / containerWidth ) * 2 - 1;
+        mouse.y = - ( event.clientY / containerHeight ) * 2 + 1;
+
+        raycaster.setFromCamera( mouse, camera );
+        intersects = raycaster.intersectObjects( scene.children, true );
+
+        if (intersects.length > 0) {
+            intersects[0].object.material.color.set( 0xff0000 );
+        }
     }
 
-}
+    function onWindowResize() {
+        camera.aspect = containerWidth / containerHeight;
+        camera.updateProjectionMatrix();
 
-function drawGraph( graph ){
-    /*console.log(graph.id);
-    $("#UI").append(graph.id+"<br />");
-    if(graph.getChildren() != ""){
-        children = graph.getChildren();
-        row = [];
-        children.forEach(function( node ){
-            row.push(node.id);
-            //drawGraph(node); //dorobit funkciu getRow
-        })
-        $("#UI").append(row+"<br />");
-    }*/
-
-    nodes = nextLevel(graph);
-    console.log(nodes);
-    while(nodes != false) {
-        nodes = nextLevel(nodes);
-        console.log(nodes);
+        renderer.setSize( containerWidth, containerHeight );
+        render();
     }
-}
 
-/*--------3.0 - CREATING 3D ENVIRONMENT-------------*/
+    function animate(){
+        requestAnimationFrame( animate );
+        controls.update();
+        render();
 
-function init3D(){
-    /*CAMERA*/
-    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 1000);
-    camera.position.z = 50;
+    }
 
-    /*CONTROLS*/
-    controls = new THREE.TrackballControls( camera );
-    controls.addEventListener('change', render);
-    controls.rotateSpeed = 10;
-    controls.zoomSpeed = 12;
-    controls.panSpeed = 1;
-    controls.noZoom = false;
-    controls.noPan = false;
-    controls.staticMoving = true;
-    controls.dynamicDampingFactor = 0.3;
+    function render(){
+        renderer.render( scene, camera );
+    }
 
-    scene = new THREE.Scene();
+    function castRays() {
 
-    /*LIGHTS*/
-    var ambientLight = new THREE.AmbientLight( 0x000000 );
-    scene.add( ambientLight );
+        // rays
 
-    var lights = [];
-    lights[0] = new THREE.PointLight( 0xffffff, 1, 0 );
-    lights[1] = new THREE.PointLight( 0xffffff, 1, 0 );
-    lights[2] = new THREE.PointLight( 0xffffff, 1, 0 );
+        var direction = new THREE.Vector3(0, 200, -200);
 
-    lights[0].position.set( 0, 200, 0 );
-    lights[1].position.set( 100, 200, 100 );
-    lights[2].position.set( -100, -200, -100 );
+        var startPoint = camera.position.clone();
 
-    scene.add( lights[0] );
-    scene.add( lights[1] );
-    scene.add( lights[2] );
+        var ray = new THREE.Raycaster(startPoint, direction);
 
-    /*GEOMETRY*/
-    var geometry = new THREE.TorusKnotGeometry( 10, 3, 1000, 16 );
-    var material = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
+        scene.updateMatrixWorld(); // required, since you haven't rendered yet
 
-    var mesh = new THREE.Mesh( geometry, material );
-    scene.add(mesh);
+        var rayIntersects = ray.intersectObjects(scene.children, true);
 
-    /*RENDERER*/
-    renderer = new THREE.WebGLRenderer();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
-}
+        if (rayIntersects[0]) {
+            console.log(rayIntersects[0]);
 
-function animate(){
-    requestAnimationFrame( animate );
-    controls.update();
-    render();
+            var material = new THREE.LineBasicMaterial({
+                color: 0x0000ff
+            });
+            var geometry = new THREE.Geometry();
+            geometry.vertices.push(new THREE.Vector3(ray.ray.origin.x, ray.ray.origin.y, ray.ray.origin.z));
+            geometry.vertices.push(new THREE.Vector3(ray.ray.direction.x, ray.ray.direction.y, ray.ray.direction.z));
+            var line = new THREE.Line(geometry, material);
+            scene2.add( line );
 
-}
+        }
 
-function render(){
-    renderer.render( scene, camera );
+        scene.add(scene);
+
+    }
 }
