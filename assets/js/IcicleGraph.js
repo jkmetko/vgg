@@ -14,8 +14,17 @@ function icicle( path ){
     var nodeWidth = 5;
     var nodeHeight = 10;
     var nodeDepth = 1;
+    var DGraph;
 
-    checkFile( path );
+    init();
+
+    function init(){
+        XMLFile = checkFile( path );
+        graph = parseGraphML(XMLFile);
+        setMinValues( graph );
+
+        THREEDGraph = DGraph( graph );
+    }
 
     /*-------1.0 - PARSING GRAPH ML---------------------*/
 
@@ -34,7 +43,8 @@ function icicle( path ){
 
         console.log("NUMBER OF NODES IN GUML: "+nodes.length);
         console.log("NUMBER OF NODES IN GRAPH: "+numberOfGraphNodes);
-        setMinValues( graph );
+
+        return graph;
     }
 
     function addToGraph(graph, node){
@@ -72,16 +82,19 @@ function icicle( path ){
     }
 
     function checkFile( path ) {
-        $.ajax({
-            type: "GET",
-            url: path,
-            dataType: "xml",
-            success:  function( output ){
-                parseGraphML( output );
-            },error: function(){
-                console.log("File '"+ path +"' does not exists")
-            }//,async: false
-        })
+        if (window.XMLHttpRequest)
+            {// code for IE7+, Firefox, Chrome, Opera, Safari
+            xmlhttp=new XMLHttpRequest();
+        }
+        else{
+            // code for IE6, IE5
+            xmlhttp=new ActiveXObject("Microsoft.XMLHTTP");
+        }
+        xmlhttp.open("GET",path,false);
+        xmlhttp.send();
+        xmlDoc=xmlhttp.responseXML;
+
+        return xmlDoc;
     }
 
     /*--------2.0 - CREATING GRAPH----------------------*/
@@ -194,13 +207,11 @@ function icicle( path ){
             levelIndex++;
             nodes = nextLevel(nodes);
         }
-
-        init3D( graph );
     }
 
     /*--------3.0 - CREATING 3D ENVIRONMENT-------------*/
 
-    function init3D( graph ){
+    function DGraph( graph ){
         /*CONTAINER*/
         containerWidth = container.clientWidth;
         containerHeight = container.clientHeight;
@@ -235,7 +246,7 @@ function icicle( path ){
         window.addEventListener( 'resize', onWindowResize, false )
 
         /*ANIMATE*/
-        animate();
+        return animate();
     }
 
     function setCamera(){
@@ -285,6 +296,8 @@ function icicle( path ){
 
         //console.log("X OF"+node.id+" = "+node.x);
         cube.add( mesh );
+
+        //cube.position.set(node.x, node.y*-1, node.z);
         cube.name = node.id;
 
         return cube;
@@ -327,6 +340,14 @@ function icicle( path ){
         return result;
     }
 
+    function findRoot( node ){
+        if(node.parent != null){
+            return findRoot( node.parent );
+        }else{
+            return node.id;
+        }
+    }
+
     function onDocumentMouseDown( event ){
         mouse.x = ( event.clientX / containerWidth ) * 2 - 1;
         mouse.y = - ( event.clientY / containerHeight ) * 2 + 1;
@@ -337,6 +358,11 @@ function icicle( path ){
         if (intersects.length > 0) {
             intersects[0].object.material.color.set( 0xff0000 );
         }
+
+        objectID = intersects[0].object.id - 1;
+        object = cubes.getObjectById( objectID, true );
+        nodeObject = graph.findChild( object.name );
+        findRoot( nodeObject );
     }
 
     function onWindowResize() {
@@ -351,42 +377,9 @@ function icicle( path ){
         requestAnimationFrame( animate );
         controls.update();
         render();
-
     }
 
     function render(){
         renderer.render( scene, camera );
-    }
-
-    function castRays() {
-
-        // rays
-
-        var direction = new THREE.Vector3(0, 200, -200);
-
-        var startPoint = camera.position.clone();
-
-        var ray = new THREE.Raycaster(startPoint, direction);
-
-        scene.updateMatrixWorld(); // required, since you haven't rendered yet
-
-        var rayIntersects = ray.intersectObjects(scene.children, true);
-
-        if (rayIntersects[0]) {
-            console.log(rayIntersects[0]);
-
-            var material = new THREE.LineBasicMaterial({
-                color: 0x0000ff
-            });
-            var geometry = new THREE.Geometry();
-            geometry.vertices.push(new THREE.Vector3(ray.ray.origin.x, ray.ray.origin.y, ray.ray.origin.z));
-            geometry.vertices.push(new THREE.Vector3(ray.ray.direction.x, ray.ray.direction.y, ray.ray.direction.z));
-            var line = new THREE.Line(geometry, material);
-            scene2.add( line );
-
-        }
-
-        scene.add(scene);
-
     }
 }

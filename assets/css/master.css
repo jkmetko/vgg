@@ -9,7 +9,7 @@ html, body{
 	z-index: 0;
 }
 
-canvas{
+#icicleContainer{
 	position: relative;
 	top: 0;
 	left: 0;
