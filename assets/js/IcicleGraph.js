@@ -1,12 +1,4 @@
 function icicle( path ){
-    var camera, controls, lights, scene, renderer, graph;
-    var container = document.getElementById( 'icicleContainer' ),
-        containerWidth, containerHeight,
-        range = 50;
-    var cubes = new THREE.Object3D();
-    var raycaster = new THREE.Raycaster();
-    var mouse = new THREE.Vector2();
-
     var numberOfGraphNodes = 0;
     var nodes = [];
     var minWidth = 0;
@@ -14,11 +6,10 @@ function icicle( path ){
     var nodeWidth = 5;
     var nodeHeight = 10;
     var nodeDepth = 1;
-    var DGraph;
 
-    init();
+    initialize();
 
-    function init(){
+    function initialize(){
         XMLFile = checkFile( path );
         graph = parseGraphML(XMLFile);
         setMinValues( graph );
@@ -97,7 +88,58 @@ function icicle( path ){
         return xmlDoc;
     }
 
-    /*--------2.0 - CREATING GRAPH----------------------*/
+    function setMinValues( graph ){
+        var maxChildrenDepth = 0;
+        var maxChildrenInLevel = 0;
+
+        nodes = nextLevel(graph);
+        while(nodes != false){
+            if(nodes.length > maxChildrenInLevel){
+                maxChildrenInLevel = nodes.length; //MAX WIDTH OF LEVEL IN THREE
+            }
+            maxChildrenDepth++;
+            nodes = nextLevel(nodes);
+        }
+        minWidth = maxChildrenInLevel * nodeWidth;
+        minHeight = maxChildrenDepth * nodeHeight;
+
+
+        console.log("MAX CHILDREN IN LEVEL: "+maxChildrenInLevel);
+        console.log("GRAPH MIN WIDTH: "+minWidth);
+        console.log("GRAPH MIN HEIGHT: "+minHeight);
+
+        setGraph( graph );
+    }
+
+    function setGraph( graph ){
+        var levelIndex = 1;
+
+        graph.setWidth( minWidth );
+        graph.setPosition(0,0);
+        nodes = nextLevel(graph);
+        while(nodes != false){
+            numberOfNodesInLevel = nodes.length;
+
+            nodes.forEach(function( node, index ){
+                parent = node.getParentNode();
+                parentWidth = parent.width;
+                numberOfChildren = parent.getChildren().length;
+                childrenWidth = parentWidth / numberOfChildren;
+                nodeX = (index * childrenWidth);
+                nodeY = levelIndex * nodeHeight;
+
+                node.setWidth( childrenWidth );
+                node.setPosition( nodeX, nodeY );
+                //console.log("WIDTH OF "+node.id+" = "+childrenWidth);
+                //console.log("X OF "+node.id+" = "+nodeX);
+            });
+
+            levelIndex++;
+            nodes = nextLevel(nodes);
+        }
+    }
+
+    /*--------2.0 - TREE STRUCTURE----------------------*/
     function Node( id, text ){
         this.id = id;
         this.children = [];
@@ -158,102 +200,77 @@ function icicle( path ){
 
     }
 
-    function setMinValues( graph ){
-        var maxChildrenDepth = 0;
-        var maxChildrenInLevel = 0;
-
-        nodes = nextLevel(graph);
-        while(nodes != false){
-            if(nodes.length > maxChildrenInLevel){
-                maxChildrenInLevel = nodes.length; //MAX WIDTH OF LEVEL IN THREE
-            }
-            maxChildrenDepth++;
-            nodes = nextLevel(nodes);
-        }
-        minWidth = maxChildrenInLevel * nodeWidth;
-        minHeight = maxChildrenDepth * nodeHeight;
-
-
-        console.log("MAX CHILDREN IN LEVEL: "+maxChildrenInLevel);
-        console.log("GRAPH MIN WIDTH: "+minWidth);
-        console.log("GRAPH MIN HEIGHT: "+minHeight);
-
-        setGraph( graph );
-    }
-
-    function setGraph( graph ){
-        var levelIndex = 1;
-
-        graph.setWidth( minWidth );
-        graph.setPosition(0,0);
-        nodes = nextLevel(graph);
-        while(nodes != false){
-            numberOfNodesInLevel = nodes.length;
-
-            nodes.forEach(function( node, index ){
-                parent = node.getParentNode();
-                parentWidth = parent.width;
-                numberOfChildren = parent.getChildren().length;
-                childrenWidth = parentWidth / numberOfChildren;
-                nodeX = index * childrenWidth;
-                nodeY = levelIndex * nodeHeight;
-
-                node.setWidth( childrenWidth );
-                node.setPosition( nodeX, nodeY );
-                //console.log("WIDTH OF "+node.id+" = "+childrenWidth);
-                //console.log("X OF "+node.id+" = "+nodeX);
-            });
-
-            levelIndex++;
-            nodes = nextLevel(nodes);
-        }
-    }
-
-    /*--------3.0 - CREATING 3D ENVIRONMENT-------------*/
-
+    /*--------3.0 - 3D TREE STRUCTURE-------------*/
     function THREEDGraph( graph ){
+        this.camera;
+        this.controls;
+        this.lights;
+        this.scene;
+        this.renderer;
+        this.cubemap;
 
-        init();
+        this.container = document.getElementById( 'icicleContainer' );
+        this.containerWidth, this.containerHeight;
 
-        this.init = function(){
+        this.range = 50;
+        this.cubes = new THREE.Object3D();
+        this.raycaster = new THREE.Raycaster();
+        this.mouse = new THREE.Vector2();
+        this.graph = graph;
+
+        this.defaultColor = 0x181818;
+        this.pathColor = 0x58401c;
+        this.childColor = 0x37260c;
+
+        this.defaultOpacity = 0.7;
+        this.pathOpacity = 1;
+
+       init();
+
+        function init(){
             /*CONTAINER*/
-            containerWidth = container.clientWidth;
-            containerHeight = container.clientHeight;
+            this.containerWidth = container.clientWidth;
+            this.containerHeight = container.clientHeight;
 
             /*SCENE*/
-            scene = new THREE.Scene();
+            this.scene = new THREE.Scene();
+
+            /*AXIS HELPER*/
+            scene.add( new THREE.AxisHelper( 1000 ) );
 
             /*CAMERA*/
-            camera = this.setCamera();
-            scene.add(camera);
+            this.camera = setCamera();
+            this.scene.add(camera);
 
             /*CONTROLS*/
-            this.setControls();
+            setControls();
+
+            /*SETMAP*/
+            this.cubemap = setMap();
 
             /*GEOMETRY*/
-            cubes = this.addTo3DGraph( cubes );
-            //cubes.add(setGeometry(graph));
-            scene.add(cubes);
-            console.log(scene);
+            this.cubes = addTo3DGraph( this.cubes, this.nodes );
+            this.scene.add(this.cubes);
+            console.log(this.scene);
 
             /*LIGHTS*/
-            this.setLights( scene );
+            setLights( this.scene );
 
             /*RENDERER*/
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize( containerWidth, containerHeight );
-            container.appendChild( renderer.domElement );
+            this.renderer = new THREE.WebGLRenderer({ antialias: true });
+            this.renderer.setSize( containerWidth, containerHeight );
+            this.container.appendChild( renderer.domElement );
 
             /*LISTENERS*/
-            controls.addEventListener('change', this.render);
-            document.addEventListener( 'mousedown', this.onDocumentMouseDown, false );
-            window.addEventListener( 'resize', this.onWindowResize, false )
+            this.controls.addEventListener('change', render);
+            document.addEventListener( 'mousedown', onDocumentMouseDown, false );
+            window.addEventListener( 'resize', onWindowResize, false );
 
             /*ANIMATE*/
-            this.animate();
-        }
+            animate();
+       }
 
-        this.setCamera = function(){
+        function setCamera(){
             camera = new THREE.PerspectiveCamera(75, containerWidth / containerHeight, 1, 1000);
             camera.position.set( 0, 0, range * 2 );
             camera.lookAt( new THREE.Vector3( 0, 0, 0 ) );
@@ -261,55 +278,97 @@ function icicle( path ){
             return camera;
         }
 
-        this.setControls = function(){
-            controls = new THREE.TrackballControls( camera );
-            controls.rotateSpeed = 10;
-            controls.zoomSpeed = 12;
-            controls.panSpeed = 1;
-            controls.noZoom = false;
-            controls.noPan = false;
-            controls.staticMoving = true;
-            controls.dynamicDampingFactor = 0.3;
+        function setControls(){
+            this.controls = new THREE.TrackballControls( camera );
+            this.controls.rotateSpeed = 10;
+            this.controls.zoomSpeed = 12;
+            this.controls.panSpeed = 1;
+            this.controls.noZoom = false;
+            this.controls.noPan = false;
+            this.controls.staticMoving = true;
+            this.controls.dynamicDampingFactor = 0.3;
         }
 
-        this.setLights = function( scene ){
-            var ambientLight = new THREE.AmbientLight( 0x000000 );
-            cubes.add( ambientLight );
+        function setMap(){
+            var urls = [
+                'assets/img/panorama/0004.png',
+                'assets/img/panorama/0002.png',
+                'assets/img/panorama/0006.png',
+                'assets/img/panorama/0005.png',
+                'assets/img/panorama/0001.png',
+                'assets/img/panorama/0003.png'
+            ];
 
-            lights = [];
-            lights.push( new THREE.PointLight( 0xffffff, 1, 0 ) );
-            lights.push( new THREE.PointLight( 0xffffff, 1, 0 ) );
-            lights.push( new THREE.PointLight( 0xffffff, 1, 0 ) );
+            cubemap = THREE.ImageUtils.loadTextureCube(urls); // load textures
+            cubemap.format = THREE.RGBFormat;
 
-            lights[0].position.set( 0, 200, 0 );
-            lights[1].position.set( 100, 200, 100 );
-            lights[2].position.set( -100, -200, -100 );
+            var shader = THREE.ShaderLib['cube']; // init cube shader from built-in lib
+            shader.uniforms['tCube'].value = cubemap; // apply textures to shader
 
-            lights.forEach(function(light){
-                cubes.add( light );
+            // create shader material
+            var skyBoxMaterial = new THREE.ShaderMaterial( {
+                fragmentShader: shader.fragmentShader,
+                vertexShader: shader.vertexShader,
+                uniforms: shader.uniforms,
+                depthWrite: false,
+                side: THREE.BackSide
+            });
+
+            // create skybox mesh
+            var skybox = new THREE.Mesh(
+                new THREE.BoxGeometry(1000, 1000, 1000),
+                skyBoxMaterial
+            );
+
+            this.scene.add(skybox);
+            return cubemap;
+        }
+
+        function setLights( scene ){
+            var ambientLight = new THREE.AmbientLight( 0xffffff );
+            this.cubes.add( ambientLight );
+
+            this.lights = [];
+            this.lights.push( new THREE.PointLight( 0xffffff, 1, 0 ) );
+            this.lights.push( new THREE.PointLight( 0xffffff, 1, 0 ) );
+            this.lights.push( new THREE.PointLight( 0xffffff, 1, 0 ) );
+            this.lights.push( new THREE.PointLight( 0xffffff, 1, 0 ) );
+
+            this.lights[0].position.set( 0, 200, 0 );
+            this.lights[1].position.set( 100, 200, 100 );
+            this.lights[2].position.set( -100, -200, 100 );
+            this.lights[3].position.set( -100, -200, -200 );
+
+            this.lights.forEach(function(light){
+                this.cubes.add( light );
             })
         }
 
-        this.setGeometry = function( node ){
+        function setGeometry( node ){
             cube = new THREE.Object3D();
 
             geometry = new THREE.BoxGeometry( node.width, nodeHeight, nodeDepth );
-            material = new THREE.MeshLambertMaterial({ color: 0x00ff00, wireframe: true, wireframe_linewidth: 10 });
+            material = new THREE.MeshPhongMaterial({
+                color: this.defaultColor,
+                evnMap: this.cubemap,
+                reflectivity: 100,
+                wireframe: true,
+                wireframe_linewidth: 10,
+                transparent: true,
+                opacity: 1
+            });
             mesh = new THREE.Mesh( geometry, material );
             mesh.position.set(node.x, node.y*-1, node.z);
 
-            //console.log("X OF"+node.id+" = "+node.x);
             cube.add( mesh );
-
-            //cube.position.set(node.x, node.y*-1, node.z);
             cube.name = node.id;
 
             return cube;
         }
 
-        this.addTo3DGraph = function( DGraph ){
-            nodes = nextLevel( graph );
-            DGraph.add(setGeometry( graph ));
+        function addTo3DGraph( DGraph ){
+            nodes = nextLevel( this.graph );
+            DGraph.add(setGeometry( this.graph ));
             /*//TEST SETUP
              DGraph.children[0].add(setGeometry( graph.getChildren()[0] ));
              DGraph.children[0].add(setGeometry( graph.getChildren()[1] ));
@@ -319,9 +378,9 @@ function icicle( path ){
              */
             while(nodes != false){
                 nodes.forEach(function(node){
-                    cube = this.setGeometry( node );
-                    child = this.find3Dchild(DGraph, node.parent.id);
-                    child.add(this.setGeometry( node ));
+                    cube = setGeometry( node );
+                    child = find3Dchild(DGraph, node.parent.id);
+                    child.add(setGeometry( node ));
                 })
 
                 nodes = nextLevel( nodes );
@@ -330,7 +389,7 @@ function icicle( path ){
             return DGraph;
         }
 
-        this.find3Dchild = function( DGraph, id ){
+        function find3Dchild( DGraph, id ){
             if(DGraph instanceof THREE.Object3D){
                 if(DGraph.name == id){
                     result = DGraph;
@@ -344,15 +403,38 @@ function icicle( path ){
             return result;
         }
 
-        this.findRoot = function( node ){
+        function resetColors( DGraph ){
+            DGraph.traverse(function(child){
+                if(child instanceof THREE.Mesh){
+                    child.material.color.setHex(this.defaultColor);
+                    child.material.opacity = this.defaultOpacity;
+                }
+            });
+        }
+
+        function findRoot( node ){
             if(node.parent != null){
+                THREEDChild = this.cubes.getObjectByName(node.id);
+                THREEDChild.children.forEach(function(child){
+                    if(child instanceof THREE.Mesh){
+                        child.material.color.setHex(this.pathColor);
+                        child.material.opacity = this.pathOpacity;
+                    }
+                });
                 return findRoot( node.parent );
             }else{
+                THREEDChild = this.cubes.getObjectByName(node.id);
+                THREEDChild.children.forEach(function(child){
+                    if(child instanceof THREE.Mesh){
+                        child.material.color.setHex(this.pathColor);
+                        child.material.opacity = this.pathOpacity;
+                    }
+                });
                 return node.id;
             }
         }
 
-        this.onDocumentMouseDown = function( event ){
+        function onDocumentMouseDown( event ){
             mouse.x = ( event.clientX / containerWidth ) * 2 - 1;
             mouse.y = - ( event.clientY / containerHeight ) * 2 + 1;
 
@@ -360,16 +442,16 @@ function icicle( path ){
             intersects = raycaster.intersectObjects( scene.children, true );
 
             if (intersects.length > 0) {
-                intersects[0].object.material.color.set( 0xff0000 );
+                objectID = intersects[0].object.id - 1;
+                object = cubes.getObjectById( objectID, true );
+                nodeObject = graph.findChild( object.name );
+                resetColors( cubes );
+                findRoot( nodeObject );
+                intersects[0].object.material.color.set( this.childColor );
             }
-
-            objectID = intersects[0].object.id - 1;
-            object = cubes.getObjectById( objectID, true );
-            nodeObject = graph.findChild( object.name );
-            findRoot( nodeObject );
         }
 
-        this.onWindowResize = function() {
+        function onWindowResize() {
             camera.aspect = containerWidth / containerHeight;
             camera.updateProjectionMatrix();
 
@@ -377,13 +459,13 @@ function icicle( path ){
             render();
         }
 
-        this.animate = function(){
+        function animate(){
             requestAnimationFrame( animate );
             controls.update();
             render();
         }
 
-        this.render = function(){
+        function render(){
             renderer.render( scene, camera );
         }
     }
