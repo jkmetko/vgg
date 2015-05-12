@@ -23,7 +23,7 @@ function icicle( path ){
         graph = parseGraphML(XMLFile);
         setMinValues( graph );
 
-        THREEDGraph = DGraph( graph );
+        dimensionalGraph = THREEDGraph( graph );
     }
 
     /*-------1.0 - PARSING GRAPH ML---------------------*/
@@ -211,175 +211,180 @@ function icicle( path ){
 
     /*--------3.0 - CREATING 3D ENVIRONMENT-------------*/
 
-    function DGraph( graph ){
-        /*CONTAINER*/
-        containerWidth = container.clientWidth;
-        containerHeight = container.clientHeight;
+    function THREEDGraph( graph ){
 
-        /*SCENE*/
-        scene = new THREE.Scene();
+        init();
 
-        /*CAMERA*/
-        camera = setCamera();
-        scene.add(camera);
+        this.init = function(){
+            /*CONTAINER*/
+            containerWidth = container.clientWidth;
+            containerHeight = container.clientHeight;
 
-        /*CONTROLS*/
-        setControls();
+            /*SCENE*/
+            scene = new THREE.Scene();
 
-        /*GEOMETRY*/
-        cubes = addTo3DGraph( cubes );
-        //cubes.add(setGeometry(graph));
-        scene.add(cubes);
-        console.log(scene);
+            /*CAMERA*/
+            camera = this.setCamera();
+            scene.add(camera);
 
-        /*LIGHTS*/
-        setLights( scene );
+            /*CONTROLS*/
+            this.setControls();
 
-        /*RENDERER*/
-        renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize( containerWidth, containerHeight );
-        container.appendChild( renderer.domElement );
+            /*GEOMETRY*/
+            cubes = this.addTo3DGraph( cubes );
+            //cubes.add(setGeometry(graph));
+            scene.add(cubes);
+            console.log(scene);
 
-        /*LISTENERS*/
-        controls.addEventListener('change', render);
-        document.addEventListener( 'mousedown', onDocumentMouseDown, false );
-        window.addEventListener( 'resize', onWindowResize, false )
+            /*LIGHTS*/
+            this.setLights( scene );
 
-        /*ANIMATE*/
-        return animate();
-    }
+            /*RENDERER*/
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize( containerWidth, containerHeight );
+            container.appendChild( renderer.domElement );
 
-    function setCamera(){
-        camera = new THREE.PerspectiveCamera(75, containerWidth / containerHeight, 1, 1000);
-        camera.position.set( 0, 0, range * 2 );
-        camera.lookAt( new THREE.Vector3( 0, 0, 0 ) );
+            /*LISTENERS*/
+            controls.addEventListener('change', this.render);
+            document.addEventListener( 'mousedown', this.onDocumentMouseDown, false );
+            window.addEventListener( 'resize', this.onWindowResize, false )
 
-        return camera;
-    }
-
-    function setControls(){
-        controls = new THREE.TrackballControls( camera );
-        controls.rotateSpeed = 10;
-        controls.zoomSpeed = 12;
-        controls.panSpeed = 1;
-        controls.noZoom = false;
-        controls.noPan = false;
-        controls.staticMoving = true;
-        controls.dynamicDampingFactor = 0.3;
-    }
-
-    function setLights( scene ){
-        var ambientLight = new THREE.AmbientLight( 0x000000 );
-        cubes.add( ambientLight );
-
-        lights = [];
-        lights.push( new THREE.PointLight( 0xffffff, 1, 0 ) );
-        lights.push( new THREE.PointLight( 0xffffff, 1, 0 ) );
-        lights.push( new THREE.PointLight( 0xffffff, 1, 0 ) );
-
-        lights[0].position.set( 0, 200, 0 );
-        lights[1].position.set( 100, 200, 100 );
-        lights[2].position.set( -100, -200, -100 );
-
-        lights.forEach(function(light){
-            cubes.add( light );
-        })
-    }
-
-    function setGeometry( node ){
-        cube = new THREE.Object3D();
-
-        geometry = new THREE.BoxGeometry( node.width, nodeHeight, nodeDepth );
-        material = new THREE.MeshLambertMaterial({ color: 0x00ff00, wireframe: true, wireframe_linewidth: 10 });
-        mesh = new THREE.Mesh( geometry, material );
-        mesh.position.set(node.x, node.y*-1, node.z);
-
-        //console.log("X OF"+node.id+" = "+node.x);
-        cube.add( mesh );
-
-        //cube.position.set(node.x, node.y*-1, node.z);
-        cube.name = node.id;
-
-        return cube;
-    }
-
-    function addTo3DGraph( DGraph ){
-        nodes = nextLevel( graph );
-        DGraph.add(setGeometry( graph ));
-        /*//TEST SETUP
-        DGraph.children[0].add(setGeometry( graph.getChildren()[0] ));
-        DGraph.children[0].add(setGeometry( graph.getChildren()[1] ));
-        DGraph.children[0].children[1].add(setGeometry( graph.getChildren()[0].getChildren()[0] ));
-        DGraph.children[0].children[1].add(setGeometry( graph.getChildren()[0].getChildren()[1] ));
-        DGraph.children[0].children[1].add(setGeometry( graph.getChildren()[0].getChildren()[2] ));
-        */
-        while(nodes != false){
-            nodes.forEach(function(node){
-                cube = setGeometry( node );
-                child = find3Dchild(DGraph, node.parent.id);
-                child.add(setGeometry( node ));
-            })
-
-            nodes = nextLevel( nodes );
+            /*ANIMATE*/
+            this.animate();
         }
 
-        return DGraph;
-    }
+        this.setCamera = function(){
+            camera = new THREE.PerspectiveCamera(75, containerWidth / containerHeight, 1, 1000);
+            camera.position.set( 0, 0, range * 2 );
+            camera.lookAt( new THREE.Vector3( 0, 0, 0 ) );
 
-    function find3Dchild( DGraph, id ){
-        if(DGraph instanceof THREE.Object3D){
-            if(DGraph.name == id){
-                result = DGraph;
-            }else if(DGraph.children.length > 0){
-                children = DGraph.children;
-                children.forEach(function(child){
-                    return find3Dchild( child, id );
+            return camera;
+        }
+
+        this.setControls = function(){
+            controls = new THREE.TrackballControls( camera );
+            controls.rotateSpeed = 10;
+            controls.zoomSpeed = 12;
+            controls.panSpeed = 1;
+            controls.noZoom = false;
+            controls.noPan = false;
+            controls.staticMoving = true;
+            controls.dynamicDampingFactor = 0.3;
+        }
+
+        this.setLights = function( scene ){
+            var ambientLight = new THREE.AmbientLight( 0x000000 );
+            cubes.add( ambientLight );
+
+            lights = [];
+            lights.push( new THREE.PointLight( 0xffffff, 1, 0 ) );
+            lights.push( new THREE.PointLight( 0xffffff, 1, 0 ) );
+            lights.push( new THREE.PointLight( 0xffffff, 1, 0 ) );
+
+            lights[0].position.set( 0, 200, 0 );
+            lights[1].position.set( 100, 200, 100 );
+            lights[2].position.set( -100, -200, -100 );
+
+            lights.forEach(function(light){
+                cubes.add( light );
+            })
+        }
+
+        this.setGeometry = function( node ){
+            cube = new THREE.Object3D();
+
+            geometry = new THREE.BoxGeometry( node.width, nodeHeight, nodeDepth );
+            material = new THREE.MeshLambertMaterial({ color: 0x00ff00, wireframe: true, wireframe_linewidth: 10 });
+            mesh = new THREE.Mesh( geometry, material );
+            mesh.position.set(node.x, node.y*-1, node.z);
+
+            //console.log("X OF"+node.id+" = "+node.x);
+            cube.add( mesh );
+
+            //cube.position.set(node.x, node.y*-1, node.z);
+            cube.name = node.id;
+
+            return cube;
+        }
+
+        this.addTo3DGraph = function( DGraph ){
+            nodes = nextLevel( graph );
+            DGraph.add(setGeometry( graph ));
+            /*//TEST SETUP
+             DGraph.children[0].add(setGeometry( graph.getChildren()[0] ));
+             DGraph.children[0].add(setGeometry( graph.getChildren()[1] ));
+             DGraph.children[0].children[1].add(setGeometry( graph.getChildren()[0].getChildren()[0] ));
+             DGraph.children[0].children[1].add(setGeometry( graph.getChildren()[0].getChildren()[1] ));
+             DGraph.children[0].children[1].add(setGeometry( graph.getChildren()[0].getChildren()[2] ));
+             */
+            while(nodes != false){
+                nodes.forEach(function(node){
+                    cube = this.setGeometry( node );
+                    child = this.find3Dchild(DGraph, node.parent.id);
+                    child.add(this.setGeometry( node ));
                 })
+
+                nodes = nextLevel( nodes );
+            }
+
+            return DGraph;
+        }
+
+        this.find3Dchild = function( DGraph, id ){
+            if(DGraph instanceof THREE.Object3D){
+                if(DGraph.name == id){
+                    result = DGraph;
+                }else if(DGraph.children.length > 0){
+                    children = DGraph.children;
+                    children.forEach(function(child){
+                        return find3Dchild( child, id );
+                    })
+                }
+            }
+            return result;
+        }
+
+        this.findRoot = function( node ){
+            if(node.parent != null){
+                return findRoot( node.parent );
+            }else{
+                return node.id;
             }
         }
-        return result;
-    }
 
-    function findRoot( node ){
-        if(node.parent != null){
-            return findRoot( node.parent );
-        }else{
-            return node.id;
-        }
-    }
+        this.onDocumentMouseDown = function( event ){
+            mouse.x = ( event.clientX / containerWidth ) * 2 - 1;
+            mouse.y = - ( event.clientY / containerHeight ) * 2 + 1;
 
-    function onDocumentMouseDown( event ){
-        mouse.x = ( event.clientX / containerWidth ) * 2 - 1;
-        mouse.y = - ( event.clientY / containerHeight ) * 2 + 1;
+            raycaster.setFromCamera( mouse, camera );
+            intersects = raycaster.intersectObjects( scene.children, true );
 
-        raycaster.setFromCamera( mouse, camera );
-        intersects = raycaster.intersectObjects( scene.children, true );
+            if (intersects.length > 0) {
+                intersects[0].object.material.color.set( 0xff0000 );
+            }
 
-        if (intersects.length > 0) {
-            intersects[0].object.material.color.set( 0xff0000 );
+            objectID = intersects[0].object.id - 1;
+            object = cubes.getObjectById( objectID, true );
+            nodeObject = graph.findChild( object.name );
+            findRoot( nodeObject );
         }
 
-        objectID = intersects[0].object.id - 1;
-        object = cubes.getObjectById( objectID, true );
-        nodeObject = graph.findChild( object.name );
-        findRoot( nodeObject );
-    }
+        this.onWindowResize = function() {
+            camera.aspect = containerWidth / containerHeight;
+            camera.updateProjectionMatrix();
 
-    function onWindowResize() {
-        camera.aspect = containerWidth / containerHeight;
-        camera.updateProjectionMatrix();
+            renderer.setSize( containerWidth, containerHeight );
+            render();
+        }
 
-        renderer.setSize( containerWidth, containerHeight );
-        render();
-    }
+        this.animate = function(){
+            requestAnimationFrame( animate );
+            controls.update();
+            render();
+        }
 
-    function animate(){
-        requestAnimationFrame( animate );
-        controls.update();
-        render();
-    }
-
-    function render(){
-        renderer.render( scene, camera );
+        this.render = function(){
+            renderer.render( scene, camera );
+        }
     }
 }
