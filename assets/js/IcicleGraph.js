@@ -1,4 +1,4 @@
-function icicle( path, fullscreen ){
+function icicle( path, fullScreen, wireFrame, axis, THREEDPanorama ){
     var numberOfGraphNodes = 0;
     var nodes = [];
     var minWidth = 0;
@@ -6,7 +6,10 @@ function icicle( path, fullscreen ){
     var nodeWidth = 5;
     var nodeHeight = 10;
     var nodeDepth = 1;
-    var fullscreen = fullscreen;
+    var fullscreen = fullScreen;
+    var wireFrame = wireFrame;
+    var axis = axis;
+    var THREEDPanorama = THREEDPanorama;
 
     initialize();
 
@@ -239,7 +242,9 @@ function icicle( path, fullscreen ){
             this.scene = new THREE.Scene();
 
             /*AXIS HELPER*/
-            scene.add(new THREE.AxisHelper(1000));
+            if(axis) {
+                scene.add(new THREE.AxisHelper(1000));
+            }
 
             /*CAMERA*/
             this.camera = setCamera();
@@ -249,7 +254,9 @@ function icicle( path, fullscreen ){
             setControls();
 
             /*SETMAP*/
-            this.cubemap = setMap();
+            if(THREEDPanorama){
+                this.cubemap = setMap();
+            }
 
             /*GEOMETRY*/
             this.cubes = addTo3DGraph(this.cubes, this.nodes);
@@ -260,7 +267,7 @@ function icicle( path, fullscreen ){
             setLights(this.scene);
 
             /*RENDERER*/
-            this.renderer = new THREE.WebGLRenderer({antialias: true});
+            this.renderer = new THREE.WebGLRenderer({antialias: true, precision: "highp"});
             this.renderer.setSize(containerWidth, containerHeight);
             this.container.appendChild(renderer.domElement);
 
@@ -357,7 +364,7 @@ function icicle( path, fullscreen ){
                 color: this.defaultColor,
                 evnMap: this.cubemap,
                 reflectivity: 100,
-                wireframe: true,
+                wireframe: wireFrame,
                 wireframe_linewidth: 10,
                 transparent: true,
                 opacity: 1
