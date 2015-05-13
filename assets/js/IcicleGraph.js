@@ -1,4 +1,4 @@
-function icicle( path ){
+function icicle( path, fullscreen ){
     var numberOfGraphNodes = 0;
     var nodes = [];
     var minWidth = 0;
@@ -6,6 +6,7 @@ function icicle( path ){
     var nodeWidth = 5;
     var nodeHeight = 10;
     var nodeDepth = 1;
+    var fullscreen = fullscreen;
 
     initialize();
 
@@ -37,6 +38,24 @@ function icicle( path ){
 
         return graph;
     }
+
+    function checkFile( path ) {
+        if (window.XMLHttpRequest)
+        {// code for IE7+, Firefox, Chrome, Opera, Safari
+            xmlhttp=new XMLHttpRequest();
+        }
+        else{
+            // code for IE6, IE5
+            xmlhttp=new ActiveXObject("Microsoft.XMLHTTP");
+        }
+        xmlhttp.open("GET",path,false);
+        xmlhttp.send();
+        xmlDoc=xmlhttp.responseXML;
+
+        return xmlDoc;
+    }
+
+    /*-------2.0 -  ABSTRACT GRAPH----------------------*/
 
     function addToGraph(graph, node){
         source = node.attr("source");
@@ -70,22 +89,6 @@ function icicle( path ){
         }else{
             return false;
         }
-    }
-
-    function checkFile( path ) {
-        if (window.XMLHttpRequest)
-            {// code for IE7+, Firefox, Chrome, Opera, Safari
-            xmlhttp=new XMLHttpRequest();
-        }
-        else{
-            // code for IE6, IE5
-            xmlhttp=new ActiveXObject("Microsoft.XMLHTTP");
-        }
-        xmlhttp.open("GET",path,false);
-        xmlhttp.send();
-        xmlDoc=xmlhttp.responseXML;
-
-        return xmlDoc;
     }
 
     function setMinValues( graph ){
@@ -139,7 +142,7 @@ function icicle( path ){
         }
     }
 
-    /*--------2.0 - TREE STRUCTURE----------------------*/
+    /*--------3.0 - TREE STRUCTURE---------------------*/
     function Node( id, text ){
         this.id = id;
         this.children = [];
@@ -200,7 +203,7 @@ function icicle( path ){
 
     }
 
-    /*--------3.0 - 3D TREE STRUCTURE-------------*/
+    /*--------4.0 - 3D TREE STRUCTURE------------------*/
     function THREEDGraph( graph ){
         this.camera;
         this.controls;
@@ -225,9 +228,9 @@ function icicle( path ){
         this.defaultOpacity = 0.7;
         this.pathOpacity = 1;
 
-       init();
+        init();
 
-        function init(){
+        function init() {
             /*CONTAINER*/
             this.containerWidth = container.clientWidth;
             this.containerHeight = container.clientHeight;
@@ -236,7 +239,7 @@ function icicle( path ){
             this.scene = new THREE.Scene();
 
             /*AXIS HELPER*/
-            scene.add( new THREE.AxisHelper( 1000 ) );
+            scene.add(new THREE.AxisHelper(1000));
 
             /*CAMERA*/
             this.camera = setCamera();
@@ -249,22 +252,24 @@ function icicle( path ){
             this.cubemap = setMap();
 
             /*GEOMETRY*/
-            this.cubes = addTo3DGraph( this.cubes, this.nodes );
+            this.cubes = addTo3DGraph(this.cubes, this.nodes);
             this.scene.add(this.cubes);
             console.log(this.scene);
 
             /*LIGHTS*/
-            setLights( this.scene );
+            setLights(this.scene);
 
             /*RENDERER*/
-            this.renderer = new THREE.WebGLRenderer({ antialias: true });
-            this.renderer.setSize( containerWidth, containerHeight );
-            this.container.appendChild( renderer.domElement );
+            this.renderer = new THREE.WebGLRenderer({antialias: true});
+            this.renderer.setSize(containerWidth, containerHeight);
+            this.container.appendChild(renderer.domElement);
 
             /*LISTENERS*/
             this.controls.addEventListener('change', render);
-            document.addEventListener( 'mousedown', onDocumentMouseDown, false );
-            window.addEventListener( 'resize', onWindowResize, false );
+            document.addEventListener('mousedown', onDocumentMouseDown, false);
+            if (fullscreen) {
+                window.addEventListener('resize', onWindowResize, false);
+            }
 
             /*ANIMATE*/
             animate();
@@ -455,7 +460,12 @@ function icicle( path ){
             camera.aspect = containerWidth / containerHeight;
             camera.updateProjectionMatrix();
 
-            renderer.setSize( containerWidth, containerHeight );
+            $("#icicleContainer").css({
+                width: $(window).width(),
+                height: $(window).height()
+            });
+
+            renderer.setSize( $( "#icicleContainer").width(), $( "#icicleContainer").height() );
             render();
         }
 
@@ -469,4 +479,5 @@ function icicle( path ){
             renderer.render( scene, camera );
         }
     }
+
 }
